@@ -34,6 +34,7 @@ defaults = {
     "future_message_seen": False,
     "final_reveal_requested": False,
     "quiz_options": None,
+    "archive_override": False,
 }
 for key, value in defaults.items():
     if key not in st.session_state:
@@ -59,6 +60,15 @@ def nav_button(label, target):
         st.rerun()
 
 def activity_checks():
+    if st.session_state.archive_override:
+        return [
+            ("ARCHIVE EXPLORED", True),
+            ("MEMORIES CAPTURED", True),
+            ("DAY RECORDED", True),
+            ("WEBSITE REVIEWED", True),
+            ("SECRET FOUND", True),
+            ("FUTURE VISITED", True),
+        ]
     return [
         ("ARCHIVE EXPLORED", "FIRST DISCOVERY" in st.session_state.achievements),
         ("MEMORIES CAPTURED", len(st.session_state.captured_photos) > 0),
@@ -1045,40 +1055,281 @@ elif st.session_state.page == "🎂 BIRTHDAY":
     else:
         st.success("🔓 ALL ARCHIVE OBJECTIVES COMPLETE — THE BUTTON HAS STOPPED RUNNING!")
 
-        components.html(
+        st.markdown(
             """
-            <style>
-                #finalOpen {
-                    display:flex;
-                    align-items:center;
-                    justify-content:center;
-                    width:100%;
-                    min-height:62px;
-                    box-sizing:border-box;
-                    border-radius:18px;
-                    border:1px solid rgba(205,215,255,.6);
-                    background:linear-gradient(135deg,rgba(55,70,135,.98),rgba(20,27,60,.98));
-                    color:white;
-                    text-decoration:none;
-                    font-family:Arial,sans-serif;
-                    font-size:16px;
-                    font-weight:700;
-                    letter-spacing:1.5px;
-                    box-shadow:0 0 35px rgba(130,150,255,.35);
-                }
-            </style>
-            <a id="finalOpen" href="?nova_reveal=1">🎂 OPEN THE BIRTHDAY REVEAL 🎂</a>
+            <div style="text-align:center;margin:18px 0 10px;">
+                <div style="font-family:Orbitron,Arial,sans-serif;letter-spacing:3px;color:#aebeff;font-size:12px;">
+                    FINAL GATE UNLOCKED
+                </div>
+                <div style="color:#c8d0e8;margin-top:7px;">The button is stable now. Start the NOVA origin cinematic.</div>
+            </div>
             """,
-            height=85,
-            scrolling=False,
+            unsafe_allow_html=True,
         )
+        if st.button("🎂 OPEN THE BIRTHDAY REVEAL 🎂", key="open_nova_cinematic", use_container_width=True):
+            st.session_state.final_reveal_requested = True
+            st.query_params.clear()
+            st.rerun()
 
     if st.session_state.final_reveal_requested and pct >= 100:
         award("BIRTHDAY COMPLETE")
         st.balloons()
+
+        # ------------------------------------------------------------
+        # CINEMATIC NOVA ORIGIN STORY
+        # Planet -> collision -> cosmic rebirth -> 06 Nov 2009
+        # ------------------------------------------------------------
+        components.html(
+            r"""
+            <style>
+                * { box-sizing:border-box; }
+                html,body { margin:0; padding:0; background:#02030a; overflow:hidden; }
+                body { font-family:Arial,sans-serif; min-height:100%; }
+
+                .nova-film {
+                    position:relative;
+                    width:100%;
+                    height:700px;
+                    min-height:700px;
+                    overflow:hidden;
+                    border-radius:26px;
+                    background:
+                        radial-gradient(circle at 50% 48%, rgba(88,105,255,.12), transparent 22%),
+                        radial-gradient(circle at 50% 50%, rgba(255,255,255,.035), transparent 45%),
+                        #02030a;
+                    border:1px solid rgba(170,185,255,.28);
+                    box-shadow:0 0 55px rgba(92,112,255,.20), inset 0 0 80px rgba(0,0,0,.85);
+                }
+
+                .stars, .stars2, .stars3 {
+                    position:absolute; inset:0;
+                    background-repeat:repeat;
+                    pointer-events:none;
+                }
+                .stars {
+                    opacity:.8;
+                    background-image:
+                        radial-gradient(circle, #fff 0 1px, transparent 1.5px),
+                        radial-gradient(circle, #b8c8ff 0 1px, transparent 1.5px);
+                    background-size:83px 91px, 137px 121px;
+                    background-position:11px 17px, 50px 70px;
+                    animation: drift 20s linear infinite;
+                }
+                .stars2 {
+                    opacity:.5;
+                    background-image:radial-gradient(circle, #fff 0 1px, transparent 1.5px);
+                    background-size:211px 173px;
+                    animation: drift 32s linear infinite reverse;
+                }
+                .stars3 {
+                    opacity:.3;
+                    background-image:radial-gradient(circle, #d8c8ff 0 1.2px, transparent 1.7px);
+                    background-size:53px 149px;
+                    animation: drift 14s linear infinite;
+                }
+
+                .film-vignette {
+                    position:absolute; inset:0; pointer-events:none;
+                    background:radial-gradient(circle, transparent 42%, rgba(0,0,0,.75) 100%);
+                }
+
+                .scene-title {
+                    position:absolute; top:42px; left:0; width:100%;
+                    text-align:center; z-index:20;
+                    color:#dfe6ff; font-size:12px; letter-spacing:5px;
+                    opacity:0; animation:titleIn 2s ease forwards .3s;
+                }
+                .scene-title b { color:#fff; }
+
+                .planet {
+                    position:absolute;
+                    width:190px; height:190px;
+                    left:calc(50% - 95px); top:calc(50% - 95px);
+                    border-radius:50%; z-index:7;
+                    background:
+                        radial-gradient(circle at 34% 28%, #e5eaff 0 3%, #a6b5ff 9%, transparent 25%),
+                        radial-gradient(circle at 63% 62%, #5d72d8 0 14%, #253474 42%, #0a102c 76%, #02030a 100%);
+                    box-shadow:
+                        -28px -18px 45px rgba(135,160,255,.35),
+                        20px 25px 45px rgba(0,0,0,.9),
+                        0 0 45px rgba(105,130,255,.18);
+                    opacity:0;
+                    transform:scale(.15);
+                    animation:planetAppear 4s cubic-bezier(.16,.8,.2,1) forwards 2s,
+                              planetPulse 3s ease-in-out infinite 6s;
+                }
+                .planet:before {
+                    content:""; position:absolute; inset:-12px; border-radius:50%;
+                    border:1px solid rgba(166,190,255,.35);
+                    box-shadow:0 0 25px rgba(112,140,255,.22);
+                }
+                .planet-name {
+                    position:absolute; top:calc(50% + 112px); width:100%;
+                    text-align:center; z-index:9; color:#e7ecff;
+                    font-family:Georgia,serif; font-size:20px; letter-spacing:8px;
+                    opacity:0; animation:fadeIn 2s ease forwards 4.8s;
+                }
+
+                .intruder {
+                    position:absolute; width:86px; height:86px; border-radius:50%;
+                    left:-120px; top:calc(50% - 43px); z-index:10;
+                    background:radial-gradient(circle at 30% 25%, #fff1df, #ff9f63 22%, #9d3657 58%, #25091f 100%);
+                    box-shadow:0 0 35px #ff8a66, 0 0 75px rgba(255,95,80,.45);
+                    opacity:0;
+                    animation:intruderMove 3.1s cubic-bezier(.65,.02,.9,.35) forwards 6.1s;
+                }
+                .trail {
+                    position:absolute; width:260px; height:18px; left:-310px;
+                    top:calc(50% - 9px); z-index:8; border-radius:50%;
+                    background:linear-gradient(90deg, transparent, rgba(255,145,105,.8), transparent);
+                    filter:blur(5px); opacity:0;
+                    animation:trailMove 3.1s linear forwards 6.1s;
+                }
+
+                .impact {
+                    position:absolute; width:40px; height:40px; border-radius:50%;
+                    left:calc(50% - 20px); top:calc(50% - 20px);
+                    z-index:15; background:white; opacity:0; transform:scale(.1);
+                    box-shadow:0 0 35px #fff, 0 0 100px #9eb3ff, 0 0 180px #8c5cff;
+                    animation:impact 2.1s ease forwards 9.05s;
+                }
+                .shock {
+                    position:absolute; width:80px; height:80px; border-radius:50%;
+                    left:calc(50% - 40px); top:calc(50% - 40px);
+                    border:2px solid rgba(230,240,255,.85); z-index:14;
+                    opacity:0; transform:scale(.1);
+                    animation:shock 2.4s ease-out forwards 9.15s;
+                }
+
+                .flash {
+                    position:absolute; inset:0; z-index:16;
+                    background:white; opacity:0; pointer-events:none;
+                    animation:flash 1.7s ease forwards 9.25s;
+                }
+
+                .rebirth-core {
+                    position:absolute; width:30px; height:30px; border-radius:50%;
+                    left:calc(50% - 15px); top:calc(50% - 15px);
+                    background:#fff; z-index:18; opacity:0; transform:scale(.1);
+                    box-shadow:0 0 35px white, 0 0 100px #b9c7ff, 0 0 180px #9d75ff;
+                    animation:rebirth 4s ease-out forwards 10.2s;
+                }
+
+                .nova-born {
+                    position:absolute; inset:0; z-index:25;
+                    display:flex; flex-direction:column; align-items:center; justify-content:center;
+                    text-align:center; opacity:0; transform:scale(.92);
+                    animation:born 3.5s ease forwards 12.4s;
+                    pointer-events:none;
+                }
+                .nova-date {
+                    font-family:Arial,sans-serif; color:#aebeff;
+                    font-size:15px; letter-spacing:8px; margin-bottom:18px;
+                }
+                .nova-born h1 {
+                    margin:0; color:white; font-family:Georgia,serif;
+                    font-size:clamp(42px,7vw,88px); letter-spacing:8px;
+                    text-shadow:0 0 18px rgba(188,205,255,.7), 0 0 55px rgba(116,137,255,.55);
+                }
+                .nova-born p {
+                    margin:18px 0 0; color:#c9d2ee; font-size:14px; letter-spacing:5px;
+                }
+                .nova-credit {
+                    position:absolute; bottom:30px; left:0; width:100%; text-align:center;
+                    z-index:30; color:rgba(205,214,240,.55); font-size:10px;
+                    letter-spacing:3px; opacity:0; animation:fadeIn 2s ease forwards 15s;
+                }
+
+                @keyframes drift { from{transform:translateY(0)} to{transform:translateY(30px)} }
+                @keyframes titleIn { to{opacity:1} }
+                @keyframes fadeIn { to{opacity:1} }
+                @keyframes planetAppear {
+                    0%{opacity:0;transform:scale(.15) rotate(-25deg)}
+                    55%{opacity:1;transform:scale(1.08) rotate(8deg)}
+                    100%{opacity:1;transform:scale(1) rotate(0)}
+                }
+                @keyframes planetPulse {
+                    0%,100%{filter:brightness(1)} 50%{filter:brightness(1.18)}
+                }
+                @keyframes intruderMove {
+                    0%{opacity:0;transform:translateX(0) rotate(0)}
+                    8%{opacity:1}
+                    100%{opacity:1;transform:translateX(calc(50vw + 120px)) rotate(720deg)}
+                }
+                @keyframes trailMove {
+                    0%{opacity:0;transform:translateX(0)}
+                    10%{opacity:1}
+                    100%{opacity:0;transform:translateX(calc(50vw + 120px))}
+                }
+                @keyframes impact {
+                    0%{opacity:0;transform:scale(.1)}
+                    25%{opacity:1;transform:scale(1.5)}
+                    100%{opacity:0;transform:scale(20)}
+                }
+                @keyframes shock {
+                    0%{opacity:0;transform:scale(.1)}
+                    15%{opacity:1}
+                    100%{opacity:0;transform:scale(15)}
+                }
+                @keyframes flash {
+                    0%{opacity:0} 15%{opacity:.95} 38%{opacity:.15} 55%{opacity:.65} 100%{opacity:0}
+                }
+                @keyframes rebirth {
+                    0%{opacity:0;transform:scale(.1)}
+                    20%{opacity:1;transform:scale(3)}
+                    60%{opacity:1;transform:scale(1)}
+                    100%{opacity:0;transform:scale(.1)}
+                }
+                @keyframes born {
+                    0%{opacity:0;transform:scale(.92)}
+                    35%{opacity:1;transform:scale(1.03)}
+                    100%{opacity:1;transform:scale(1)}
+                }
+
+                @media (prefers-reduced-motion:reduce) {
+                    .stars,.stars2,.stars3,.planet,.planet-name,.intruder,.trail,.impact,.shock,.flash,.rebirth-core,.nova-born,.scene-title,.nova-credit { animation:none !important; }
+                    .scene-title,.planet,.planet-name,.nova-born,.nova-credit { opacity:1 !important; }
+                    .planet { transform:scale(1) !important; }
+                    .intruder,.trail,.impact,.shock,.flash,.rebirth-core { opacity:0 !important; }
+                }
+            </style>
+
+            <div class="nova-film" aria-label="Cinematic origin story of NOVA">
+                <div class="stars"></div>
+                <div class="stars2"></div>
+                <div class="stars3"></div>
+                <div class="scene-title">THE ARCHIVE HAS BEEN COMPLETED &nbsp;•&nbsp; <b>NOVA ORIGIN PROTOCOL</b></div>
+
+                <div class="planet"></div>
+                <div class="planet-name">N O V A</div>
+
+                <div class="trail"></div>
+                <div class="intruder"></div>
+                <div class="impact"></div>
+                <div class="shock"></div>
+                <div class="flash"></div>
+                <div class="rebirth-core"></div>
+
+                <div class="nova-born">
+                    <div class="nova-date">06 • 11 • 2009 &nbsp; | &nbsp; 10:30 AM</div>
+                    <h1>NOVA WAS BORN.</h1>
+                    <p>ONE COLLISION. ONE NEW STAR. ONE UNFORGETTABLE STORY.</p>
+                </div>
+
+                <div class="nova-credit">FARHEEN ✦ NOVA &nbsp; // &nbsp; PERSONAL ARCHIVE</div>
+                <div class="film-vignette"></div>
+            </div>
+            """,
+            height=730,
+            scrolling=False,
+        )
+
+        if st.button("🔁 PLAY NOVA ORIGIN AGAIN", key="replay_nova_cinematic", use_container_width=True):
+            st.rerun()
+
         st.markdown(
             f"""
-            <div class="big-reveal">
+            <div class="big-reveal" style="margin-top:18px;">
                 <div class="kicker">🎊 PARTY PROTOCOL // COMPLETE 🎊</div>
                 <h1>🎂 HAPPY BIRTHDAY, NOVA 🎂</h1>
                 <p style="font-family:Orbitron;letter-spacing:4px;color:#c8d0e8;">
@@ -1198,6 +1449,37 @@ if st.session_state.page == "🏆 REPORT":
                 st.markdown(f'<div class="achievement-card" style="text-align:center;"><div style="font-size:38px">{icons.get(badge,"✦")}</div><div class="card-title">{badge}</div></div>', unsafe_allow_html=True)
     else:
         st.info("No achievements yet. Start exploring.")
+
+# ============================================================
+# PRIVATE ARCHIVE OVERRIDE
+# ============================================================
+# Temporary developer shortcut: this is intentionally tucked away at the very
+# bottom of the archive. It completes the checklist without creating fake
+# photos/reviews; the activity report simply treats the archive as complete.
+st.markdown(
+    """
+    <div style="height:18px;"></div>
+    """,
+    unsafe_allow_html=True,
+)
+
+with st.expander("·", expanded=False):
+    st.caption("Archive maintenance")
+    if st.button("🔐 COMPLETE ARCHIVE TASKS", key="private_archive_override", use_container_width=True):
+        st.session_state.archive_override = True
+        st.session_state.day_submitted = True
+        st.session_state.review_submitted = True
+        st.session_state.secret_found = True
+        st.session_state.capsule_saved = True
+        for badge in [
+            "FIRST DISCOVERY", "ARCHIVE EXPLORER", "MEMORY MAKER",
+            "QUIZ EXPLORER", "QUIZ MASTER", "TIME TRAVELER",
+            "FUTURE TRANSMISSION", "SECRET FOUND", "PUZZLE SOLVER",
+            "DAY RECORDED", "WEBSITE REVIEWED",
+        ]:
+            award(badge)
+        st.success("Archive override activated. All objectives are complete.")
+        st.rerun()
 
 # ============================================================
 # Footer
