@@ -1,6 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 import random
+import time
 import io
 from PIL import Image, ImageOps, ImageDraw, ImageFont
 from pathlib import Path
@@ -35,6 +36,21 @@ defaults = {
     "final_reveal_requested": False,
     "quiz_options": None,
     "archive_override": False,
+    # NOVA ARCADE state
+    "arcade_catch_score": 0,
+    "arcade_catch_target": random.randint(0, 8),
+    "arcade_catch_done": False,
+    "arcade_memory_sequence": random.sample(["🌙", "⭐", "🪐", "💙", "🐾", "✨"], 4),
+    "arcade_memory_showing": True,
+    "arcade_memory_user": [],
+    "arcade_memory_done": False,
+    "arcade_reaction_started": False,
+    "arcade_reaction_ready_at": None,
+    "arcade_reaction_done": False,
+    "arcade_code_done": False,
+    "arcade_unlocked": False,
+    "secret_files_opened": set(),
+    "secret_final_unlocked": False,
 }
 for key, value in defaults.items():
     if key not in st.session_state:
@@ -498,12 +514,288 @@ nav = [
     ("😂 FUN FACTS", "😂 FUN FACTS"), ("📸 MOMENTS", "📸 MOMENTS"),
     ("🐾 CATS", "🐾 CATS"), ("🧠 QUIZ", "🧠 QUIZ"),
     ("🔮 FUTURE", "🔮 FUTURE"), ("🎂 BIRTHDAY", "🎂 BIRTHDAY"),
+    ("🕹️ ARCADE", "🕹️ ARCADE"), ("🔐 SECRET ROOM", "🔐 SECRET ROOM"),
 ]
 cols = st.columns(4)
 for i, (label, target) in enumerate(nav):
     with cols[i % 4]:
         nav_button(label, target)
 
+
+# ============================================================
+# NOVA ARCADE // 4 MINI GAMES
+# ============================================================
+if st.session_state.page == "🕹️ ARCADE":
+    section_title(
+        "NOVA ARCADE // 4 GAMES",
+        "PLAY. COLLECT. UNLOCK.",
+        "Each completed game gives one digit. Finish all four to reveal the Secret Room code."
+    )
+
+    if st.button("↻ RESET ARCADE", key="reset_arcade", use_container_width=False):
+        st.session_state.arcade_catch_score = 0
+        st.session_state.arcade_catch_target = random.randint(0, 8)
+        st.session_state.arcade_catch_done = False
+        st.session_state.arcade_memory_sequence = random.sample(["🌙", "⭐", "🪐", "💙", "🐾", "✨"], 4)
+        st.session_state.arcade_memory_showing = True
+        st.session_state.arcade_memory_user = []
+        st.session_state.arcade_memory_done = False
+        st.session_state.arcade_reaction_started = False
+        st.session_state.arcade_reaction_ready_at = None
+        st.session_state.arcade_reaction_done = False
+        st.session_state.arcade_code_done = False
+        st.session_state.arcade_unlocked = False
+        st.session_state.secret_files_opened = set()
+        st.session_state.secret_final_unlocked = False
+        st.rerun()
+
+    arcade_digits = {
+        "CATCH THE STAR": "7",
+        "MEMORY HACK": "4",
+        "REACTION TEST": "2",
+        "CODE BREAKER": "9",
+    }
+
+    # ---------- GAME 1 ----------
+    st.markdown('<div class="card-title">⭐ 01 // CATCH THE STAR</div>', unsafe_allow_html=True)
+    st.caption("Catch the hidden star 3 times. Wrong squares are safe — just try again.")
+    if not st.session_state.arcade_catch_done:
+        grid = st.columns(3)
+        for idx in range(9):
+            with grid[idx % 3]:
+                label = "✦" if idx == st.session_state.arcade_catch_target else "·"
+                if st.button(label, key=f"catch_star_{idx}", use_container_width=True):
+                    if idx == st.session_state.arcade_catch_target:
+                        st.session_state.arcade_catch_score += 1
+                        if st.session_state.arcade_catch_score >= 3:
+                            st.session_state.arcade_catch_done = True
+                            award("ARCADE STAR")
+                        else:
+                            st.session_state.arcade_catch_target = random.randint(0, 8)
+                            st.success(f"STAR CAUGHT! {st.session_state.arcade_catch_score}/3")
+                    else:
+                        st.session_state.arcade_catch_target = random.randint(0, 8)
+                        st.info("Not there, da. The star moved. ✦")
+                    st.rerun()
+    else:
+        st.success(f"GAME COMPLETE — DIGIT {arcade_digits['CATCH THE STAR']}")
+    # ---------- GAME 2 ----------
+    st.markdown('<div class="card-title">🧠 02 // MEMORY HACK</div>', unsafe_allow_html=True)
+    st.caption("Memorize the four-symbol sequence, hide it, then enter it in the same order.")
+    seq = st.session_state.arcade_memory_sequence
+    if not st.session_state.arcade_memory_done:
+        if st.session_state.arcade_memory_showing:
+            st.markdown(
+                f"<div style='font-size:38px;letter-spacing:14px;text-align:center;padding:18px'>{' '.join(seq)}</div>",
+                unsafe_allow_html=True,
+            )
+            if st.button("HIDE SEQUENCE", key="memory_hide", use_container_width=True):
+                st.session_state.arcade_memory_showing = False
+                st.rerun()
+        else:
+            st.write("Your sequence:", " → ".join(st.session_state.arcade_memory_user) or "—")
+            mem_cols = st.columns(6)
+            for idx, emoji in enumerate(["🌙", "⭐", "🪐", "💙", "🐾", "✨"]):
+                with mem_cols[idx]:
+                    if st.button(emoji, key=f"memory_pick_{idx}", use_container_width=True):
+                        expected = seq[len(st.session_state.arcade_memory_user)]
+                        if emoji == expected:
+                            st.session_state.arcade_memory_user.append(emoji)
+                            if len(st.session_state.arcade_memory_user) == len(seq):
+                                st.session_state.arcade_memory_done = True
+                                award("MEMORY HACKER")
+                        else:
+                            st.session_state.arcade_memory_user = []
+                            st.warning("Sequence reset. Take another look and try again.")
+                        st.rerun()
+    else:
+        st.success(f"GAME COMPLETE — DIGIT {arcade_digits['MEMORY HACK']}")
+    # ---------- GAME 3 ----------
+    st.markdown('<div class="card-title">⚡ 03 // REACTION TEST</div>', unsafe_allow_html=True)
+    st.caption("Start the test. When GO appears, hit it as quickly as you can.")
+    if not st.session_state.arcade_reaction_done:
+        if not st.session_state.arcade_reaction_started:
+            if st.button("START REACTION TEST", key="reaction_start", use_container_width=True):
+                delay = random.uniform(0.8, 1.8)
+                time.sleep(delay)
+                st.session_state.arcade_reaction_ready_at = time.monotonic()
+                st.session_state.arcade_reaction_started = True
+                st.rerun()
+        else:
+            if st.button("🟢 GO!", key="reaction_go", use_container_width=True):
+                elapsed = time.monotonic() - st.session_state.arcade_reaction_ready_at
+                st.session_state.arcade_reaction_done = True
+                award("REACTION RUNNER")
+                st.success(f"Reaction time: {elapsed:.3f} seconds — DIGIT {arcade_digits['REACTION TEST']}")
+                st.rerun()
+    else:
+        st.success(f"GAME COMPLETE — DIGIT {arcade_digits['REACTION TEST']}")
+    # ---------- GAME 4 ----------
+    st.markdown('<div class="card-title">🔢 04 // CODE BREAKER</div>', unsafe_allow_html=True)
+    st.caption("Final puzzle: what is 3²?")
+    if not st.session_state.arcade_code_done:
+        answer = st.number_input("Enter the digit", min_value=0, max_value=9, value=0, step=1, key="code_breaker_answer")
+        if st.button("VERIFY DIGIT", key="code_breaker_verify", use_container_width=True):
+            if answer == 9:
+                st.session_state.arcade_code_done = True
+                award("CODE BREAKER")
+                st.rerun()
+            else:
+                st.error("Not quite. Try again.")
+    else:
+        st.success(f"GAME COMPLETE — DIGIT {arcade_digits['CODE BREAKER']}")
+    all_games = (
+        st.session_state.arcade_catch_done
+        and st.session_state.arcade_memory_done
+        and st.session_state.arcade_reaction_done
+        and st.session_state.arcade_code_done
+    )
+    if all_games:
+        st.markdown('<div class="card-title">🔓 ARCADE COMPLETE</div>', unsafe_allow_html=True)
+        st.markdown(
+            "<div class='card-body'>All four digits collected. The access code is waiting in your archive.</div>",
+            unsafe_allow_html=True,
+        )
+        st.code("7429", language="text")
+        if st.button("🔐 ENTER NOVA SECRET ROOM", key="arcade_enter_secret", use_container_width=True):
+            st.session_state.arcade_unlocked = True
+            st.session_state.page = "🔐 SECRET ROOM"
+            award("SECRET ROOM ACCESS")
+            st.rerun()
+        
+
+# ============================================================
+# NOVA SECRET ROOM // LOCKED ARCHIVE
+# ============================================================
+if st.session_state.page == "🔐 SECRET ROOM":
+    section_title(
+        "RESTRICTED ARCHIVE // 7429",
+        "NOVA SECRET ROOM",
+        "A private collection unlocked by completing the four arcade files."
+    )
+
+    if not st.session_state.arcade_unlocked:
+        st.markdown('<div class="card-title">🔒 ACCESS DENIED</div>', unsafe_allow_html=True)
+        st.markdown(
+            "<div class='card-body'>Complete the four NOVA ARCADE games first. "
+            "The code is collected one digit at a time.</div>",
+            unsafe_allow_html=True,
+        )
+        if st.button("🕹️ GO TO NOVA ARCADE", key="secret_go_arcade", use_container_width=True):
+            st.session_state.page = "🕹️ ARCADE"
+            st.rerun()
+    else:
+        secret_files = [
+            ("CORE FILE", "core"),
+            ("ORIGIN STORY", "origin"),
+            ("NOVA FILES", "files"),
+            ("MEMORY VAULT", "vault"),
+            ("THE MESSAGE", "message"),
+            ("ACHIEVEMENT WALL", "achievements"),
+        ]
+
+        for title, key in secret_files:
+            opened = key in st.session_state.secret_files_opened
+            label = ("▾ " if opened else "▸ ") + title
+            if st.button(label, key=f"secret_file_{key}", use_container_width=True):
+                if opened:
+                    st.session_state.secret_files_opened.discard(key)
+                else:
+                    st.session_state.secret_files_opened.add(key)
+                st.rerun()
+
+            if opened:
+                if key == "core":
+                    card(
+                        "CORE FILE // NOVA",
+                        "<b>NAME:</b> FARHEEN<br>"
+                        "<b>CODENAME:</b> NOVA<br>"
+                        "<b>DOB:</b> 06 November 2009<br>"
+                        "<b>BIRTH TIME:</b> 10:30 AM<br>"
+                        "<b>ARCHETYPE:</b> Night owl<br>"
+                        "<b>ENERGY:</b> Extrovert<br>"
+                        "<b>KNOWN FOR:</b> Mathematics, oval specs, and her unique 🥻 = “seri” message code.",
+                        "🌌",
+                    )
+                elif key == "origin":
+                    section_title("RESTRICTED MEMORY", "THE BEGINNING", "The original chapter of the archive.")
+                    image_paths = [
+                        Path("/mnt/data/1ofF.jpeg"),
+                        Path("1ofF.jpeg"),
+                        Path("assets/1ofF.jpeg"),
+                    ]
+                    image_path = next((x for x in image_paths if x.exists()), None)
+                    if image_path:
+                        st.image(str(image_path), caption="ORIGIN FRAME // NOVA", use_container_width=True)
+                    else:
+                        st.info("Origin photo not found yet. Add 1ofF.jpeg beside the app or in assets/.")
+                    card(
+                        "ORIGIN NOTE",
+                        "Before the archive became a collection of moments, there was simply the beginning. "
+                        "This file keeps that first chapter separate from everything that came later.",
+                        "🧸",
+                    )
+                elif key == "files":
+                    card(
+                        "NOVA FILES",
+                        "<b>FILE 01:</b> Night Owl Protocol 🌙<br>"
+                        "<b>FILE 02:</b> Mathematics Mode 🧮<br>"
+                        "<b>FILE 03:</b> Oval Specimen Signal 👓<br>"
+                        "<b>FILE 04:</b> Cat Archive 🐾<br>"
+                        "<b>FILE 05:</b> The 🥻 Message Code<br>"
+                        "<b>FILE 06:</b> Unknown Variable — still classified.",
+                        "📁",
+                    )
+                elif key == "vault":
+                    if st.session_state.captured_photos:
+                        collage = make_collage(st.session_state.captured_photos)
+                        if collage:
+                            st.image(collage, caption="NOVA MEMORY VAULT", use_container_width=True)
+                    else:
+                        card(
+                            "MEMORY VAULT",
+                            "No captured moments have been added yet. Use the MOMENTS page to create the first memory.",
+                            "📸",
+                        )
+                elif key == "message":
+                    card(
+                        "A MESSAGE FOR NOVA",
+                        "Some people leave ordinary memories. Some turn ordinary days into stories. "
+                        "This archive is a small digital way of keeping the funny, bright, chaotic, "
+                        "and unforgettable parts of the journey together. ✦<br><br>"
+                        "<b>HAPPY BIRTHDAY, NOVA.</b> 🌌",
+                        "💌",
+                    )
+                elif key == "achievements":
+                    earned = sorted(st.session_state.achievements)
+                    if earned:
+                        st.markdown(
+                            "<div class='glass-card'><div class='card-title'>ACHIEVEMENT WALL</div>"
+                            + "".join(f"<div class='card-body'>✦ {a}</div>" for a in earned)
+                            + "</div>",
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        st.info("Explore the archive to collect achievements.")
+
+        if len(st.session_state.secret_files_opened) == len(secret_files):
+            st.session_state.secret_final_unlocked = True
+
+        if st.session_state.secret_final_unlocked:
+            st.markdown('<div class="card-title">🌟 FINAL SECRET FILE // UNLOCKED</div>', unsafe_allow_html=True)
+            st.markdown(
+                "<div class='card-body'>"
+                "You opened every restricted file. There is nothing left to hide.<br><br>"
+                "<b>FARHEEN // NOVA</b><br>"
+                "This archive was made to celebrate one person, one story, and a lot of memories. ✦"
+                "</div>",
+                unsafe_allow_html=True,
+            )
+            if st.button("🎂 OPEN FINAL BIRTHDAY REVEAL", key="secret_final_reveal", use_container_width=True):
+                st.session_state.final_reveal_requested = True
+                st.session_state.page = "🎂 BIRTHDAY"
+                st.rerun()
+            
 
 # ============================================================
 # ORIGIN STORY // CHILDHOOD + FAMILY
@@ -1082,245 +1374,74 @@ elif st.session_state.page == "🎂 BIRTHDAY":
         components.html(
             r"""
             <style>
-                * { box-sizing:border-box; }
-                html,body { margin:0; padding:0; background:#02030a; overflow:hidden; }
-                body { font-family:Arial,sans-serif; min-height:100%; }
-
-                .nova-film {
-                    position:relative;
-                    width:100%;
-                    height:700px;
-                    min-height:700px;
-                    overflow:hidden;
-                    border-radius:26px;
-                    background:
-                        radial-gradient(circle at 50% 48%, rgba(88,105,255,.12), transparent 22%),
-                        radial-gradient(circle at 50% 50%, rgba(255,255,255,.035), transparent 45%),
-                        #02030a;
-                    border:1px solid rgba(170,185,255,.28);
-                    box-shadow:0 0 55px rgba(92,112,255,.20), inset 0 0 80px rgba(0,0,0,.85);
-                }
-
-                .stars, .stars2, .stars3 {
-                    position:absolute; inset:0;
-                    background-repeat:repeat;
-                    pointer-events:none;
-                }
-                .stars {
-                    opacity:.8;
-                    background-image:
-                        radial-gradient(circle, #fff 0 1px, transparent 1.5px),
-                        radial-gradient(circle, #b8c8ff 0 1px, transparent 1.5px);
-                    background-size:83px 91px, 137px 121px;
-                    background-position:11px 17px, 50px 70px;
-                    animation: drift 20s linear infinite;
-                }
-                .stars2 {
-                    opacity:.5;
-                    background-image:radial-gradient(circle, #fff 0 1px, transparent 1.5px);
-                    background-size:211px 173px;
-                    animation: drift 32s linear infinite reverse;
-                }
-                .stars3 {
-                    opacity:.3;
-                    background-image:radial-gradient(circle, #d8c8ff 0 1.2px, transparent 1.7px);
-                    background-size:53px 149px;
-                    animation: drift 14s linear infinite;
-                }
-
-                .film-vignette {
-                    position:absolute; inset:0; pointer-events:none;
-                    background:radial-gradient(circle, transparent 42%, rgba(0,0,0,.75) 100%);
-                }
-
-                .scene-title {
-                    position:absolute; top:42px; left:0; width:100%;
-                    text-align:center; z-index:20;
-                    color:#dfe6ff; font-size:12px; letter-spacing:5px;
-                    opacity:0; animation:titleIn 2s ease forwards .3s;
-                }
-                .scene-title b { color:#fff; }
-
-                .planet {
-                    position:absolute;
-                    width:190px; height:190px;
-                    left:calc(50% - 95px); top:calc(50% - 95px);
-                    border-radius:50%; z-index:7;
-                    background:
-                        radial-gradient(circle at 34% 28%, #e5eaff 0 3%, #a6b5ff 9%, transparent 25%),
-                        radial-gradient(circle at 63% 62%, #5d72d8 0 14%, #253474 42%, #0a102c 76%, #02030a 100%);
-                    box-shadow:
-                        -28px -18px 45px rgba(135,160,255,.35),
-                        20px 25px 45px rgba(0,0,0,.9),
-                        0 0 45px rgba(105,130,255,.18);
-                    opacity:0;
-                    transform:scale(.15);
-                    animation:planetAppear 4s cubic-bezier(.16,.8,.2,1) forwards 2s,
-                              planetPulse 3s ease-in-out infinite 6s;
-                }
-                .planet:before {
-                    content:""; position:absolute; inset:-12px; border-radius:50%;
-                    border:1px solid rgba(166,190,255,.35);
-                    box-shadow:0 0 25px rgba(112,140,255,.22);
-                }
-                .planet-name {
-                    position:absolute; top:calc(50% + 112px); width:100%;
-                    text-align:center; z-index:9; color:#e7ecff;
-                    font-family:Georgia,serif; font-size:20px; letter-spacing:8px;
-                    opacity:0; animation:fadeIn 2s ease forwards 4.8s;
-                }
-
-                .intruder {
-                    position:absolute; width:86px; height:86px; border-radius:50%;
-                    left:-120px; top:calc(50% - 43px); z-index:10;
-                    background:radial-gradient(circle at 30% 25%, #fff1df, #ff9f63 22%, #9d3657 58%, #25091f 100%);
-                    box-shadow:0 0 35px #ff8a66, 0 0 75px rgba(255,95,80,.45);
-                    opacity:0;
-                    animation:intruderMove 3.1s cubic-bezier(.65,.02,.9,.35) forwards 6.1s;
-                }
-                .trail {
-                    position:absolute; width:260px; height:18px; left:-310px;
-                    top:calc(50% - 9px); z-index:8; border-radius:50%;
-                    background:linear-gradient(90deg, transparent, rgba(255,145,105,.8), transparent);
-                    filter:blur(5px); opacity:0;
-                    animation:trailMove 3.1s linear forwards 6.1s;
-                }
-
-                .impact {
-                    position:absolute; width:40px; height:40px; border-radius:50%;
-                    left:calc(50% - 20px); top:calc(50% - 20px);
-                    z-index:15; background:white; opacity:0; transform:scale(.1);
-                    box-shadow:0 0 35px #fff, 0 0 100px #9eb3ff, 0 0 180px #8c5cff;
-                    animation:impact 2.1s ease forwards 9.05s;
-                }
-                .shock {
-                    position:absolute; width:80px; height:80px; border-radius:50%;
-                    left:calc(50% - 40px); top:calc(50% - 40px);
-                    border:2px solid rgba(230,240,255,.85); z-index:14;
-                    opacity:0; transform:scale(.1);
-                    animation:shock 2.4s ease-out forwards 9.15s;
-                }
-
-                .flash {
-                    position:absolute; inset:0; z-index:16;
-                    background:white; opacity:0; pointer-events:none;
-                    animation:flash 1.7s ease forwards 9.25s;
-                }
-
-                .rebirth-core {
-                    position:absolute; width:30px; height:30px; border-radius:50%;
-                    left:calc(50% - 15px); top:calc(50% - 15px);
-                    background:#fff; z-index:18; opacity:0; transform:scale(.1);
-                    box-shadow:0 0 35px white, 0 0 100px #b9c7ff, 0 0 180px #9d75ff;
-                    animation:rebirth 4s ease-out forwards 10.2s;
-                }
-
-                .nova-born {
-                    position:absolute; inset:0; z-index:25;
-                    display:flex; flex-direction:column; align-items:center; justify-content:center;
-                    text-align:center; opacity:0; transform:scale(.92);
-                    animation:born 3.5s ease forwards 12.4s;
-                    pointer-events:none;
-                }
-                .nova-date {
-                    font-family:Arial,sans-serif; color:#aebeff;
-                    font-size:15px; letter-spacing:8px; margin-bottom:18px;
-                }
-                .nova-born h1 {
-                    margin:0; color:white; font-family:Georgia,serif;
-                    font-size:clamp(42px,7vw,88px); letter-spacing:8px;
-                    text-shadow:0 0 18px rgba(188,205,255,.7), 0 0 55px rgba(116,137,255,.55);
-                }
-                .nova-born p {
-                    margin:18px 0 0; color:#c9d2ee; font-size:14px; letter-spacing:5px;
-                }
-                .nova-credit {
-                    position:absolute; bottom:30px; left:0; width:100%; text-align:center;
-                    z-index:30; color:rgba(205,214,240,.55); font-size:10px;
-                    letter-spacing:3px; opacity:0; animation:fadeIn 2s ease forwards 15s;
-                }
-
-                @keyframes drift { from{transform:translateY(0)} to{transform:translateY(30px)} }
-                @keyframes titleIn { to{opacity:1} }
-                @keyframes fadeIn { to{opacity:1} }
-                @keyframes planetAppear {
-                    0%{opacity:0;transform:scale(.15) rotate(-25deg)}
-                    55%{opacity:1;transform:scale(1.08) rotate(8deg)}
-                    100%{opacity:1;transform:scale(1) rotate(0)}
-                }
-                @keyframes planetPulse {
-                    0%,100%{filter:brightness(1)} 50%{filter:brightness(1.18)}
-                }
-                @keyframes intruderMove {
-                    0%{opacity:0;transform:translateX(0) rotate(0)}
-                    8%{opacity:1}
-                    100%{opacity:1;transform:translateX(calc(50vw + 120px)) rotate(720deg)}
-                }
-                @keyframes trailMove {
-                    0%{opacity:0;transform:translateX(0)}
-                    10%{opacity:1}
-                    100%{opacity:0;transform:translateX(calc(50vw + 120px))}
-                }
-                @keyframes impact {
-                    0%{opacity:0;transform:scale(.1)}
-                    25%{opacity:1;transform:scale(1.5)}
-                    100%{opacity:0;transform:scale(20)}
-                }
-                @keyframes shock {
-                    0%{opacity:0;transform:scale(.1)}
-                    15%{opacity:1}
-                    100%{opacity:0;transform:scale(15)}
-                }
-                @keyframes flash {
-                    0%{opacity:0} 15%{opacity:.95} 38%{opacity:.15} 55%{opacity:.65} 100%{opacity:0}
-                }
-                @keyframes rebirth {
-                    0%{opacity:0;transform:scale(.1)}
-                    20%{opacity:1;transform:scale(3)}
-                    60%{opacity:1;transform:scale(1)}
-                    100%{opacity:0;transform:scale(.1)}
-                }
-                @keyframes born {
-                    0%{opacity:0;transform:scale(.92)}
-                    35%{opacity:1;transform:scale(1.03)}
-                    100%{opacity:1;transform:scale(1)}
-                }
-
-                @media (prefers-reduced-motion:reduce) {
-                    .stars,.stars2,.stars3,.planet,.planet-name,.intruder,.trail,.impact,.shock,.flash,.rebirth-core,.nova-born,.scene-title,.nova-credit { animation:none !important; }
-                    .scene-title,.planet,.planet-name,.nova-born,.nova-credit { opacity:1 !important; }
-                    .planet { transform:scale(1) !important; }
-                    .intruder,.trail,.impact,.shock,.flash,.rebirth-core { opacity:0 !important; }
-                }
+                *{box-sizing:border-box}
+                html,body{margin:0;padding:0;background:#02030a;overflow:hidden}
+                body{font-family:Arial,sans-serif}
+                .film{position:relative;width:100%;height:760px;overflow:hidden;border-radius:28px;background:#010208;border:1px solid rgba(175,190,255,.28);box-shadow:0 0 70px rgba(80,100,255,.22),inset 0 0 100px #000}
+                .film:before{content:"";position:absolute;inset:-20%;background:radial-gradient(circle at 50% 50%,rgba(75,100,255,.16),transparent 28%),radial-gradient(circle at 20% 80%,rgba(130,55,255,.10),transparent 30%);animation:spacePulse 8s ease-in-out infinite;pointer-events:none}
+                .stars,.dust{position:absolute;inset:-10%;pointer-events:none;background-repeat:repeat}
+                .stars{background-image:radial-gradient(circle,#fff 0 1px,transparent 1.5px),radial-gradient(circle,#9db5ff 0 1px,transparent 1.5px);background-size:71px 83px,127px 113px;background-position:8px 20px,40px 70px;opacity:.8;animation:starMove 18s linear infinite}
+                .dust{background-image:radial-gradient(circle,rgba(150,170,255,.7) 0 1px,transparent 2px);background-size:181px 151px;opacity:.28;animation:dustMove 11s linear infinite reverse}
+                .scan{position:absolute;inset:0;pointer-events:none;opacity:.12;background:repeating-linear-gradient(0deg,transparent 0 3px,rgba(180,200,255,.08) 4px,transparent 5px);mix-blend-mode:screen}
+                .vignette{position:absolute;inset:0;z-index:50;pointer-events:none;background:radial-gradient(circle,transparent 38%,rgba(0,0,0,.82) 100%)}
+                .letterbox{position:absolute;left:0;width:100%;height:54px;background:#000;z-index:60}.topbar{top:0}.bottombar{bottom:0}
+                .hud{position:absolute;top:78px;left:30px;right:30px;z-index:45;display:flex;justify-content:space-between;color:rgba(210,220,255,.62);font-size:10px;letter-spacing:3px;text-transform:uppercase}
+                .progress{position:absolute;left:30px;right:30px;bottom:72px;height:2px;background:rgba(255,255,255,.12);z-index:45}.progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,#7194ff,#c28cff,#fff);animation:progress 19s linear forwards}
+                .scene{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;opacity:0;pointer-events:none;z-index:30}
+                .scene .eyebrow{font-size:11px;letter-spacing:6px;color:#9eb1ef;margin-bottom:20px}.scene h1{margin:0;color:#fff;font-family:Georgia,serif;font-size:clamp(38px,7vw,86px);letter-spacing:7px;text-shadow:0 0 20px rgba(175,195,255,.8),0 0 70px rgba(95,110,255,.55)}
+                .scene p{margin:18px auto 0;max-width:720px;color:#cbd4ee;font-size:14px;line-height:1.8;letter-spacing:3px}
+                .intro{animation:intro 3.2s ease forwards}.intro2{animation:intro2 3.5s ease forwards 3s}.bornScene{animation:bornScene 4.5s ease forwards 13.3s}
+                .planet{position:absolute;width:230px;height:230px;left:calc(50% - 115px);top:calc(50% - 115px);border-radius:50%;z-index:10;background:radial-gradient(circle at 31% 25%,#fff 0 3%,#b9c7ff 10%,transparent 25%),radial-gradient(circle at 60% 60%,#6479dd 0 15%,#26336f 43%,#080c26 76%,#010208 100%);box-shadow:-30px -25px 55px rgba(150,175,255,.35),25px 30px 65px #000,0 0 55px rgba(100,130,255,.25);opacity:0;transform:scale(.2);animation:planetIn 4s cubic-bezier(.16,.8,.2,1) forwards 2.7s,planetFloat 5s ease-in-out infinite 6.7s}
+                .planet:before{content:"";position:absolute;inset:-14px;border-radius:50%;border:1px solid rgba(170,190,255,.35);box-shadow:0 0 35px rgba(105,135,255,.3)}
+                .planet:after{content:"";position:absolute;width:330px;height:70px;left:-50px;top:80px;border:2px solid rgba(180,190,255,.25);border-radius:50%;transform:rotate(-18deg);box-shadow:0 0 25px rgba(120,150,255,.18)}
+                .planet-label{position:absolute;top:calc(50% + 135px);width:100%;z-index:15;text-align:center;color:#dce4ff;font-size:12px;letter-spacing:8px;opacity:0;animation:fade 2s ease forwards 6s}
+                .meteor{position:absolute;width:90px;height:90px;border-radius:50%;left:-140px;top:calc(50% - 45px);z-index:16;background:radial-gradient(circle at 28% 24%,#fff3df,#ff9b63 20%,#9c315a 58%,#21091d 100%);box-shadow:0 0 30px #ff9b70,0 0 90px rgba(255,80,80,.5);animation:meteor 3.1s cubic-bezier(.65,.02,.9,.35) forwards 7.1s}
+                .meteor:before{content:"";position:absolute;width:290px;height:22px;right:60px;top:34px;background:linear-gradient(90deg,transparent,rgba(255,150,100,.8),transparent);filter:blur(6px);transform:rotate(0deg)}
+                .orbit{position:absolute;width:430px;height:430px;border:1px solid rgba(130,155,255,.16);border-radius:50%;z-index:8;animation:orbit 10s linear infinite 4s;transform:rotateX(66deg)}
+                .orbit:after{content:"";position:absolute;width:8px;height:8px;border-radius:50%;background:#a9c0ff;box-shadow:0 0 18px #8ca8ff;left:8px;top:50%}
+                .rings{position:absolute;width:80px;height:80px;border:2px solid rgba(190,210,255,.7);border-radius:50%;left:calc(50% - 40px);top:calc(50% - 40px);z-index:24;opacity:0;animation:rings 3s ease-out forwards 10.15s}
+                .rings:before,.rings:after{content:"";position:absolute;inset:-30px;border:1px solid rgba(120,150,255,.55);border-radius:50%}.rings:after{inset:-65px;border-color:rgba(190,130,255,.35)}
+                .flash{position:absolute;inset:0;background:#fff;z-index:40;opacity:0;pointer-events:none;animation:flash 2s ease forwards 10.15s}
+                .shock{position:absolute;width:60px;height:60px;left:calc(50% - 30px);top:calc(50% - 30px);border-radius:50%;border:2px solid #fff;z-index:25;opacity:0;animation:shock 2.8s ease-out forwards 10.1s}
+                .core{position:absolute;width:24px;height:24px;left:calc(50% - 12px);top:calc(50% - 12px);border-radius:50%;background:#fff;z-index:28;box-shadow:0 0 40px #fff,0 0 110px #a9bfff,0 0 190px #a16cff;opacity:0;animation:core 4s ease-out forwards 10.2s}
+                .particle{position:absolute;width:5px;height:5px;border-radius:50%;left:50%;top:50%;background:#fff;z-index:27;opacity:0;box-shadow:0 0 12px #fff;animation:particle 2.8s ease-out forwards 10.35s}
+                .p1{--x:-280px;--y:-190px}.p2{--x:300px;--y:-150px}.p3{--x:-330px;--y:110px}.p4{--x:350px;--y:150px}.p5{--x:-130px;--y:260px}.p6{--x:170px;--y:240px}.p7{--x:-420px;--y:-40px}.p8{--x:420px;--y:20px}.p9{--x:-210px;--y:-300px}.p10{--x:230px;--y:-290px}
+                .born-card{padding:35px 25px}.born-card .date{color:#aabcf5;font-size:14px;letter-spacing:8px;margin-bottom:22px}.born-card h1{font-size:clamp(42px,8vw,96px);margin:0}.born-card .line{height:1px;width:180px;margin:25px auto;background:linear-gradient(90deg,transparent,#fff,transparent)}
+                @keyframes starMove{to{transform:translate3d(-50px,35px,0)}}@keyframes dustMove{to{transform:translate3d(70px,-40px,0)}}@keyframes spacePulse{50%{transform:scale(1.15);opacity:.8}}
+                @keyframes progress{to{width:100%}}
+                @keyframes intro{0%{opacity:0;transform:scale(1.08);filter:blur(7px)}20%{opacity:1;transform:scale(1);filter:blur(0)}75%{opacity:1}100%{opacity:0;transform:scale(.96);filter:blur(4px)}}
+                @keyframes intro2{0%{opacity:0;transform:translateY(25px)}18%{opacity:1;transform:translateY(0)}75%{opacity:1}100%{opacity:0;transform:translateY(-20px)}}
+                @keyframes planetIn{0%{opacity:0;transform:scale(.2) rotate(-30deg)}55%{opacity:1;transform:scale(1.08) rotate(8deg)}100%{opacity:1;transform:scale(1) rotate(0)}}
+                @keyframes planetFloat{50%{transform:translateY(-10px) rotate(2deg)}}
+                @keyframes fade{to{opacity:1}}@keyframes orbit{to{transform:rotateX(66deg) rotateZ(360deg)}}
+                @keyframes meteor{0%{opacity:0;transform:translateX(0) rotate(0)}8%{opacity:1}100%{opacity:1;transform:translateX(calc(50vw + 150px)) rotate(900deg)}}
+                @keyframes rings{0%{opacity:0;transform:scale(.1)}20%{opacity:1}100%{opacity:0;transform:scale(9)}}
+                @keyframes shock{0%{opacity:0;transform:scale(.1)}15%{opacity:1}100%{opacity:0;transform:scale(18)}}
+                @keyframes flash{0%{opacity:0}12%{opacity:.95}25%{opacity:0}45%{opacity:.5}100%{opacity:0}}
+                @keyframes core{0%{opacity:0;transform:scale(.1)}20%{opacity:1;transform:scale(4)}55%{opacity:1;transform:scale(1.2)}100%{opacity:0;transform:scale(.2)}}
+                @keyframes particle{0%{opacity:0;transform:translate(0,0) scale(.3)}18%{opacity:1}100%{opacity:0;transform:translate(var(--x),var(--y)) scale(1.8)}}
+                @keyframes bornScene{0%{opacity:0;transform:scale(.82);filter:blur(12px)}22%{opacity:1;transform:scale(1.04);filter:blur(0)}35%{transform:scale(1)}100%{opacity:1}}
+                @media(max-width:700px){.film{height:620px;border-radius:20px}.hud{left:18px;right:18px;top:68px;font-size:8px}.progress{left:18px;right:18px}.letterbox{height:38px}.planet{width:170px;height:170px;left:calc(50% - 85px);top:calc(50% - 85px)}.orbit{width:300px;height:300px}.planet-label{top:calc(50% + 105px)}.scene p{padding:0 25px;font-size:11px}.born-card .date{letter-spacing:4px;font-size:11px}}
+                @media(prefers-reduced-motion:reduce){*{animation:none!important}.scene{opacity:1}.planet{opacity:1;transform:scale(1)}.meteor,.flash,.shock,.core,.rings{display:none}}
             </style>
+            <div class="film">
+                <div class="stars"></div><div class="dust"></div><div class="scan"></div>
+                <div class="letterbox topbar"></div><div class="letterbox bottombar"></div>
+                <div class="hud"><span>NOVA ORIGIN // CINEMATIC CUT</span><span>06 • 11 • 2009</span></div>
+                <div class="progress"><i></i></div>
 
-            <div class="nova-film" aria-label="Cinematic origin story of NOVA">
-                <div class="stars"></div>
-                <div class="stars2"></div>
-                <div class="stars3"></div>
-                <div class="scene-title">THE ARCHIVE HAS BEEN COMPLETED &nbsp;•&nbsp; <b>NOVA ORIGIN PROTOCOL</b></div>
+                <div class="scene intro"><div><div class="eyebrow">ARCHIVE COMPLETE • FINAL TRANSMISSION</div><h1>EVERY STAR<br>HAS A STORY.</h1><p>Some stories begin quietly.<br>Some arrive like a supernova.</p></div></div>
+                <div class="scene intro2"><div><div class="eyebrow">THE ARCHIVE PRESENTS</div><h1>NOVA</h1><p>A small universe of memories, chaos, laughter and moments worth keeping.</p></div></div>
 
-                <div class="planet"></div>
-                <div class="planet-name">N O V A</div>
+                <div class="orbit"></div><div class="planet"></div><div class="planet-label">N O V A • PERSONAL UNIVERSE</div>
+                <div class="meteor"></div><div class="rings"></div><div class="shock"></div><div class="flash"></div><div class="core"></div>
+                <div class="particle p1"></div><div class="particle p2"></div><div class="particle p3"></div><div class="particle p4"></div><div class="particle p5"></div><div class="particle p6"></div><div class="particle p7"></div><div class="particle p8"></div><div class="particle p9"></div><div class="particle p10"></div>
 
-                <div class="trail"></div>
-                <div class="intruder"></div>
-                <div class="impact"></div>
-                <div class="shock"></div>
-                <div class="flash"></div>
-                <div class="rebirth-core"></div>
-
-                <div class="nova-born">
-                    <div class="nova-date">06 • 11 • 2009 &nbsp; | &nbsp; 10:30 AM</div>
-                    <h1>NOVA WAS BORN.</h1>
-                    <p>ONE COLLISION. ONE NEW STAR. ONE UNFORGETTABLE STORY.</p>
-                </div>
-
-                <div class="nova-credit">FARHEEN ✦ NOVA &nbsp; // &nbsp; PERSONAL ARCHIVE</div>
-                <div class="film-vignette"></div>
+                <div class="scene bornScene"><div class="born-card"><div class="date">06 • 11 • 2009 &nbsp; | &nbsp; 10:30 AM</div><h1>NOVA WAS BORN.</h1><div class="line"></div><p>ONE COLLISION. ONE NEW STAR.<br>ONE UNFORGETTABLE STORY.</p></div></div>
+                <div class="vignette"></div>
             </div>
             """,
-            height=730,
+            height=790,
             scrolling=False,
         )
 
